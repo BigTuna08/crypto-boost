@@ -15,10 +15,10 @@ def plt_acc_colored(all_scores, ds_name, boost_names, noise_level, id):
     plt.xticks(range(1, len(boost_names) + 1), boost_names)
 
 
-    k = 2.5
-    while k < len(boost_names):
-        plt.axvline(k)
-        k = k + 10
+    # k = 2.5
+    # while k < len(boost_names):
+    #     plt.axvline(k)
+    #     k = k + 10
 
 
     box_plt = ax.boxplot(all_scores, patch_artist=True)
@@ -42,7 +42,7 @@ def plt_acc_colored(all_scores, ds_name, boost_names, noise_level, id):
     # plt.rc('xtick', labelsize=27)
     # plt.rc('ytick', labelsize=27)
 
-    plt.savefig("acc{}-n{:.2f}.png".format(id, noise_level))
+    plt.savefig("figs/acc{}-n{:.2f}.png".format(id, noise_level))
     plt.clf()
 
 
@@ -68,7 +68,7 @@ def plt_acc(all_scores, ds_name, boost_names, noise_level, id):
 
     ax.boxplot(all_scores, labels=boost_names)
     ax.set_xticklabels(boost_names, rotation=90, fontsize=18)
-    plt.savefig("acc{}-n{:.2f}.png".format(id, noise_level))
+    plt.savefig("figs/acc{}-n{:.2f}.png".format(id, noise_level))
 
 
 

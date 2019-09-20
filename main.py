@@ -21,7 +21,7 @@ from sklearn.model_selection import StratifiedKFold
 
 
 from fhboost import HolensteinBoostClassifier as Fboost
-from fhboost import InfoHBoost
+from fhboost import InfoHBoost, EntropyBoost
 # from invhboost import HolensteinBoostClassifier as Invboost
 # from randhboost import HolensteinBoostClassifier as Rbboost
 # from randhboost2 import HolensteinBoostClassifier as R2boost
@@ -39,22 +39,16 @@ MAX_TREE_DEPTH = 2
 REPS = 5
 
 
-# noise_levels = [0.0, 0.1, 0.2]
-noise_levels = [0.1*i for i in range(6)]
-noise_type = "feat"  # "lbl" or "feat"
+noise_levels = [0.0, 0.15, 0.3]
+# noise_levels = [0.1*i for i in range(6)]
+# noise_levels = [0.0, 0.2]
+noise_type = "lbl"  # "lbl" or "feat"
 
-epss = [0.05*i for i in range(1,6)]
+epss = [0.1*i for i in range(1,4)]
 # delts = [0.025*i for i in range(4,13)]
 # delts = [0.025*i for i in range(8,10)]
-delts = [0.05*i for i in range(2,10)] #+ [0.025*i for i in range(8,13)]
+delts = [0.1*i for i in range(1,4)] #+ [0.025*i for i in range(8,13)]
 
-#################         Data Set         ##################################################
-data_sets = ["Breast Cancer",
-             "Blood Transfusion"]
-ds_name = data_sets[0]
-
-true_features, true_labels = get_data(data_sets[0])
-features, labels = true_features.copy(), true_labels.copy()
 
 
 ##############       Set classifiers     ##############################################################
@@ -82,19 +76,46 @@ boost_names = [
 
 for eps in epss:
     for delta in delts:
-        # classifiers.append(Fboost(base_estimator=DecisionTreeClassifier(max_depth=MAX_TREE_DEPTH),
-        #                           eps=eps,
-        #                           delta=delta))
-        # boost_names.append("H|e={:.2f},d={:.2f}".format(eps, delta))
+        classifiers.append(Fboost(base_estimator=DecisionTreeClassifier(max_depth=MAX_TREE_DEPTH),
+                                  eps=eps,
+                                  delta=delta))
+        boost_names.append("H|e={:.2f},d={:.2f}".format(eps, delta))
 
         classifiers.append(InfoHBoost(base_estimator=DecisionTreeClassifier(max_depth=MAX_TREE_DEPTH),
                                   eps=eps,
                                   delta=delta))
         boost_names.append("I|e={:.2f},d={:.2f}".format(eps, delta))
 
+        # classifiers.append(EntropyBoost(base_estimator=DecisionTreeClassifier(max_depth=MAX_TREE_DEPTH),
+        #                               eps=eps,
+        #                               delta=delta))
+        # boost_names.append("EN|e={:.2f},d={:.2f}".format(eps, delta))
+        #
 
 
 if __name__ == '__main__':
+
+    #################         Data Set         ##################################################
+    data_sets = ["Breast Cancer",
+                 "Blood Transfusion",
+                 "Diabetes",
+                 "Credit Scores",
+                 "Oil Spill"]
+    ds_i = 0 # index of dataset to use (may be ovewrote by cmd line arg)
+
+    import sys
+    for arg in sys.argv:
+        if "ds=" in arg:
+            ds_i = int(arg.split("=")[1])
+            print("setting dataset to ", ds_i, data_sets[ds_i])
+
+    ds_name = data_sets[ds_i]
+
+    true_features, true_labels = get_data(data_sets[ds_i])
+    features, labels = true_features.copy(), true_labels.copy()
+
+
+    #############            Main Algorithm   #################################
 
     for noise_level in noise_levels:
         print("noise level:", noise_level , "\n\n\n\n\n")
@@ -104,12 +125,12 @@ if __name__ == '__main__':
             flip_lbls = np.random.choice(np.arange(len(true_labels)), size=int(len(true_labels) * noise_level),
                                          replace=False)
             labels[flip_lbls] = -labels[flip_lbls]
-            ds_name = "{} with label noise={}".format(ds_name, noise_level)
+            ds_title = "{} with label noise={}".format(ds_name, noise_level)
         elif noise_type == "feat":
             features = np.multiply( np.random.normal(1, noise_level, true_features.shape), true_features)
-            ds_name = "{} with feature noise={}".format(ds_name, noise_level)
+            ds_title = "{} with feature noise={}".format(ds_name, noise_level)
         elif noise_type is None:
-            pass
+            ds_title = ds_name
         else:
             raise Exception("Invalid noise type")
 
@@ -135,14 +156,16 @@ if __name__ == '__main__':
 
 
         ####################  Figures   ########################################
-        id = None  # for creating images
-        with open("logs/id") as f:
-            id = int(f.readline().strip()) + 1
+        id = 0  # for creating unique image names
+        try: # check if id has been wrote before
+            with open("logs/id") as f:
+                id = int(f.readline().strip()) + 1
+        except: pass
 
         with open("logs/id", "w") as f:
             print("id is", id)
             f.write(str(id))
 
-        # plt_acc_colored(all_scores, ds_name, boost_names, noise_level, id)
-        plt_acc(all_scores, ds_name, boost_names, noise_level, id)
+        plt_acc_colored(all_scores, ds_title, boost_names, noise_level, id)
+        # plt_acc(all_scores, ds_title, boost_names, noise_level, id)
 

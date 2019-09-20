@@ -3,6 +3,7 @@ import numpy as np
 from numpy.random import choice
 from sklearn.tree import DecisionTreeClassifier
 from scipy.spatial import distance
+from scipy.stats import entropy
 
 
 
@@ -71,7 +72,7 @@ class HolensteinBoostClassifier:
             self.weak_learners.append(wl)  # add weak learner to ensemble
 
 
-        with open("log", "a") as f:
+        with open("logs/log", "a") as f:
             f.write("{} / {} ={:.3f}| eps={:.3f}, delta={:.3f}\n".format(s, self.n_estimators, s/self.n_estimators, self.eps, self.delta))
 
 
@@ -148,7 +149,7 @@ class InfoHBoost():
 
             dist = distance.jensenshannon(weights, initial_distr)
             max_dist = max(max_dist, dist)
-            print("dist: ", dist, "with e,d=", self.eps, self.delta)
+            # print("dist: ", dist, "with e,d=", self.eps, self.delta)
 
             # if distance.jensenshannon(weights, initial_distr) >1- 2*self.delta: # if to far from uniform
             #     s = s + 1
@@ -158,7 +159,7 @@ class InfoHBoost():
 
             self.weak_learners.append(wl)  # add weak learner to ensemble
 
-        with open("log", "a") as f:
+        with open("logs/log", "a") as f:
             f.write("I{} / {} ={:.3f}|   maxd={}   |    eps={:.3f}, delta={:.3f}\n".format(s, self.n_estimators, s / self.n_estimators, max_dist,
                                                                          self.eps, self.delta))
 
@@ -177,6 +178,99 @@ class InfoHBoost():
     # accuracy
     def score(self, X, y):
         return sum(y == self.predict(X)) / len(y)
+
+
+
+
+
+class EntropyBoost():
+    def __init__(self,
+                 base_estimator=DecisionTreeClassifier(max_depth=1),
+                 n_estimators=50,
+                 eps=0.1,
+                 delta=0.2,
+                 subsample=0.5,
+                 weight_updater=None):
+        """
+
+        """
+        self.weak_learners = []
+        self.base_estimator = base_estimator
+        self.n_estimators = n_estimators
+        self.eps = eps
+        self.delta = delta
+        self.subsample = subsample
+
+        self.weight_updater = weight_updater
+        if not self.weight_updater:
+            self.weight_updater = self.default_wu
+
+
+    def fit(self, X, y):
+
+        n = len(X)
+        s = 0
+        sample_size = math.ceil(n * self.subsample)
+        advantages = np.full(n, 0.)
+        weights = np.full(n, 1)  # sample weight in the measure
+        self.weak_learners = []
+        initial_distr = np.full(n, 1 / n)
+
+        max_dist = 0.0
+
+        for _ in range(self.n_estimators):  # create n weak learners
+
+            # select subsample to train current weak learner on
+            induced_distr = weights.copy() / sum(weights)  # assumes base distr is uniform
+            inds = choice(np.arange(n), p=induced_distr, size=sample_size, replace=True)
+            X_selected, y_selected = X[inds, :], y[inds]
+
+            # fit new WL
+            wl = self.base_estimator.fit(X_selected, y_selected)
+
+            # use new WL for prediction
+            classification_result = wl.predict(X) * y  # vector, +1 if correct, -1 otherwise
+            advantages += classification_result
+
+            # update weights
+            weights = np.array([min(1, math.exp(-self.eps * (adv - s))) for adv in advantages])
+            weights /= sum(weights)
+
+            # dist = distance.jensenshannon(weights, initial_distr)
+            dist = entropy(weights)/math.log(n)
+            max_dist = max(max_dist, dist)
+            # print("dist: ", dist, "with e,d=", self.eps, self.delta)
+
+            # if distance.jensenshannon(weights, initial_distr) >1- 2*self.delta: # if to far from uniform
+            #     s = s + 1
+
+            if dist < (1-self.delta): # if to far from uniform
+                s = s + 1
+
+            self.weak_learners.append(wl)  # add weak learner to ensemble
+
+        with open("logs/log", "a") as f:
+            f.write("EN{} / {} ={:.3f}|   maxd={}   |    eps={:.3f}, delta={:.3f}\n".format(s, self.n_estimators, s / self.n_estimators, max_dist,
+                                                                         self.eps, self.delta))
+
+
+    def default_wu(self, current_weights, classification_result, s):
+        for i, correct in enumerate(classification_result):  # update weights
+            current_weights[i] *= math.exp(-self.eps * (correct - s))
+            current_weights[i] = min(current_weights[i], 1)
+
+    def predict(self, X):
+        if len(self.weak_learners) < 1:
+            raise Exception("Must fit before predicting!")
+
+        return np.sign(sum(map(lambda learner: learner.predict(X), self.weak_learners)))
+
+    # accuracy
+    def score(self, X, y):
+        return sum(y == self.predict(X)) / len(y)
+
+
+
 
 
 

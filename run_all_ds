@@ -1,0 +1,12 @@
+#!/bin/bash
+python3 main.py ds=0
+wait
+python3 main.py ds=1
+wait
+python3 main.py ds=2
+wait
+python3 main.py ds=3
+wait
+python3 main.py ds=4
+wait
+echo "Done"
